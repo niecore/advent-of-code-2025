@@ -1,0 +1,19 @@
+# Erlang/Rebar3
+.rebar3/
+_build/
+_checkouts/
+rebar.lock
+*.beam
+*.plt
+erl_crash.dump
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
