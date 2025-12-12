@@ -1,5 +1,8 @@
 -module(day01).
--export([part1/0, part2/0]).
+-export([test/0, part1/0, part2/0]).
+
+test() ->
+    ok.
 
 part1() ->
     Input = input:read_input(1),
