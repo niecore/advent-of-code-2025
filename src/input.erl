@@ -1,5 +1,5 @@
 -module(input).
--export([read_input/1]).
+-export([read_input/1, digits/1]).
 
 read_input(Day) ->
     Filename = filename:join([code:priv_dir(aoc2025), "inputs", io_lib:format("day~w.txt", [Day])]),
@@ -11,3 +11,5 @@ read_input(Day) ->
             io:format("Warning: Input file not found: ~s~n", [Filename]),
             ""
     end.
+
+digits(String) -> [C - $0 || C <- String].
