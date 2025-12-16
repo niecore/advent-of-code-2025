@@ -18,11 +18,13 @@ part2() ->
     remove_paper_rolls(RoomMap, 0).
 
 movable_paper_rolls(RoomMap) ->
-    PaperRolls = maps:filter(fun(Pos, Val) -> Val =:= 1 end, RoomMap),
-    Neighbors = [{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}],
-    NeighborsMap = maps:map(fun({X, Y}, _) -> [maps:get({X + DX, Y + DY}, RoomMap, 0) || {DX, DY} <- Neighbors] end, PaperRolls),
-    NeighborsMapCount = maps:map(fun(_, Neighbors) -> lists:sum(Neighbors) end, NeighborsMap),
-    MovablePaperRolls = maps:filter(fun(_, Count) -> Count < 4 end, NeighborsMapCount).
+    maps:filter(fun(Pos, 1) -> count_neighbors(Pos, RoomMap) < 4;
+                    (_, _) -> false
+                end, RoomMap).
+
+count_neighbors({X, Y}, RoomMap) ->
+    lists:sum([maps:get({X + DX, Y + DY}, RoomMap, 0)
+                || DX <- [-1, 0, 1], DY <- [-1, 0, 1], {DX, DY} =/= {0, 0}]).
 
 remove_paper_rolls(RoomMap, Moved) ->
     MovablePaperRolls = movable_paper_rolls(RoomMap),
