@@ -35,13 +35,16 @@ part2() ->
     FreshFoodsSorted = lists:sort(SortByStartIdx, FreshFoods),
     {FreshFoodIds, _} = lists:foldl(fun
         ({Start, End}, {FoodCount, Idx}) when End < Idx ->
+            %% Fully included range
             %% Skip the range when it ends before the current index
             {FoodCount, Idx};
         ({Start, End}, {FoodCount, Idx}) when Start < Idx ->
-            %% When Start is already below our current index
+            %% Overlapping ranges
+            %% When range starts before current inde
             %% calculate from index instead of start
             {FoodCount + End - Idx + 1, End + 1};
         ({Start, End}, {FoodCount, Idx}) ->
+            %% New Range outside of previous
             %% Range starts after current index
             {FoodCount + End - Start + 1, End + 1}
     end, {0, 0}, FreshFoodsSorted),
