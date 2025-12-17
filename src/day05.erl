@@ -22,5 +22,28 @@ part1() ->
         lists:any(fun({Start, End}) -> Food >= Start andalso Food =< End end, FreshFoods)
     end, FoodInventory)).
 
+part2_does_not_compute() ->
+    %% Bruteforcing all ranges into a set.
+    %% Does not compute in time.
+    {FreshFoods, _} = parse_input(),
+    Set = set:from_list([Id || {Start, End} <- FreshFoods, Id <- lists:seq(Start, End)]),
+    length(set:to_list(Set)).
+
 part2() ->
     {FreshFoods, _} = parse_input(),
+    SortByStartIdx = fun({Start1, _}, {Start2, _}) -> Start1 < Start2 end,
+    FreshFoodsSorted = lists:sort(SortByStartIdx, FreshFoods),
+    {FreshFoodIds, _} = lists:foldl(fun
+        ({Start, End}, {FoodCount, Idx}) when End < Idx ->
+            %% Skip the range when it ends before the current index
+            {FoodCount, Idx};
+        ({Start, End}, {FoodCount, Idx}) when Start < Idx ->
+            %% When Start is already below our current index
+            %% calculate from index instead of start
+            {FoodCount + End - Idx + 1, End + 1};
+        ({Start, End}, {FoodCount, Idx}) ->
+            %% Range starts after current index
+            {FoodCount + End - Start + 1, End + 1}
+    end, {0, 0}, FreshFoodsSorted),
+
+    FreshFoodIds.
