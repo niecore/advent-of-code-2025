@@ -15,28 +15,8 @@ calculate_next_state(Next, {Current, Splitted}) ->
     NewSplitted = lists:sum([ 1 || {_, trace, splitter} <- Combine]),
 
     %% update tachyons
-    NewTachyons = lists:flatmap(
-        fun({Idx, Cur, Next}) ->
-            case {Cur, Next} of
-                {entry, empty} -> [{Idx, trace}];
-                {trace, empty} -> [{Idx, trace}];
-                {trace, splitter} -> [{Idx - 1, trace}, {Idx + 1, trace}];
-                _ -> []
-            end
-        end,
-        Combine
-    ),
-
-    %% create new row by combining current Row
-    %% with new NewTachyons
-    TachyonMap = maps:from_list(NewTachyons),
-    NewRow = lists:zipwith(
-        fun(Idx, NextSquare) ->
-            maps:get(Idx, TachyonMap, NextSquare)
-        end,
-        lists:seq(1, length(Next)),
-        Next
-    ),
+    NewTachyons = get_splitted_tachyon(Current, Next),
+    NewRow = get_updated_row(NewTachyons, Next),
     {NewRow, NewSplitted + Splitted}.
 
 map_ascii_to_enum($.) -> empty;
@@ -53,6 +33,28 @@ print_manifold(Manifold) ->
     AsciiManifold = [ [ map_enum_to_ascii(X) || X <- Row ] || Row <- Manifold ],
     lists:foreach(fun(Row) -> io:format("~p~n", [Row]) end, AsciiManifold).
 
+%% calculates the indices of tachyons based on current and next row
+get_splitted_tachyon(Current, Next) ->
+    Combine = lists:zip3(lists:seq(1, length(Current)), Current, Next),
+
+    %% update tachyons
+    NewTachyons = lists:flatmap(
+        fun({Idx, entry, empty}) -> [Idx];
+            ({Idx, trace, empty}) -> [Idx];
+            ({Idx, trace, splitter}) -> [Idx - 1, Idx + 1];
+            (_) -> []
+        end,
+        Combine
+    ).
+
+%% calculates a new row from tachyon indices and raw next row
+get_updated_row(Tachyons, Row) ->
+    TachyonsSet = sets:from_list(Tachyons),
+    [case sets:is_element(Idx, TachyonsSet) of
+            true -> trace;
+            false -> Elem
+        end || {Idx, Elem} <- lists:enumerate(Row)].
+
 part1() ->
     Manifold = parse_input(),
     {_, Splitted} = lists:foldl(
@@ -63,4 +65,29 @@ part1() ->
     Splitted.
 
 part2() ->
-    ok.
+    Manifold = parse_input(),
+    %% does not compute without memorization
+    ets:new(multiverses, [named_table, private, set]),
+    solve_multiverse(Manifold).
+
+solve_multiverse([Current]) -> 1;
+solve_multiverse([Current | Manifold]) ->
+    Next = hd(Manifold),
+    NewTachyons = get_splitted_tachyon(Current, Next),
+
+    PossiblePaths = lists:sum(lists:map(
+        fun(NewTachyonIdx) ->
+            NewRow = get_updated_row([NewTachyonIdx], Next),
+            Lookup = {length(Manifold), NewTachyonIdx},
+            case ets:lookup(multiverses, Lookup) of
+                    [{Key, Result}] ->
+                        Result;
+                    [] ->
+                        Result = solve_multiverse([NewRow | tl(Manifold)]),
+                        ets:insert(multiverses, {Lookup, Result}),
+                        Result
+            end
+        end,
+        NewTachyons
+    )),
+    PossiblePaths.
