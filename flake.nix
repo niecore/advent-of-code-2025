@@ -29,6 +29,7 @@
             echo "  rebar3 shell            # Start Erlang shell with project loaded"
             echo "  aoc2025:solve(1, 1).    # Run Day 1, Part 1 (from shell)"
             echo ""
+            printf '\n'
           '';
         };
       }
