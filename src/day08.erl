@@ -34,20 +34,26 @@ part1() ->
 junctionboxes_in_the_same_circuit(Circuits, A, B) ->
     lists:any(fun(Circuit) -> lists:member(A, Circuit) andalso lists:member(B, Circuit) end, Circuits).
 
-connections(0, Circuits, Distances) -> Circuits;
-connections(N, Circuits, [ClosestJunctionBoxes | Rest]) ->
-    {Distance, A, B} = ClosestJunctionBoxes,
-
-    NewCircuits = case junctionboxes_in_the_same_circuit(Circuits, A, B) of
-        true -> Circuits; %% dont link them
+merge_circuits(Circuits, A, B) ->
+    case junctionboxes_in_the_same_circuit(Circuits, A, B) of
+        true ->
+            %% A and B are already in the same circuit -> no changes
+            Circuits;
         false ->
             %% We already know that A and B are not in the same circuit (can be improved also to check the first element of partition to be size 1)
             %% So we have now a list of circuits that need be connected in the first element
             %% and all other circuits in the second element
-            {[CircuitA, CircuitB | _], OtherCircuit} = lists:partition(fun(Circuit) -> lists:member(A, Circuit) orelse lists:member(B, Circuit) end, Circuits),
-            [CircuitA ++ CircuitB] ++ OtherCircuit
-    end,
+            {[CircuitA, CircuitB | _], OtherCircuit} =
+                lists:partition(fun(Circuit) ->
+                    lists:member(A, Circuit) orelse lists:member(B, Circuit)
+                end, Circuits),
+            %% Merge A and B and prepend to list of other circuits
+            [CircuitA ++ CircuitB | OtherCircuit]
+    end.
 
+connections(0, Circuits, _Distances) -> Circuits;
+connections(N, Circuits, [{_Distance, A, B} | Rest]) ->
+    NewCircuits = merge_circuits(Circuits, A, B),
     connections(N - 1, NewCircuits, Rest).
 
 part2() ->
@@ -60,19 +66,8 @@ part2() ->
     {{X1, _, _}, {X2, _, _}} = ConnectedCircuits = connections2(Circuits, Distances, {0, 0}),
     X1 * X2.
 
-connections2(Circuits, [], Pair) -> cant_connect;
-connections2(Circuits, _, Pair) when length(Circuits) == 1 -> Pair;
-connections2(Circuits, [ClosestJunctionBoxes | Rest], _) ->
-    {Distance, A, B} = ClosestJunctionBoxes,
-
-    NewCircuits = case junctionboxes_in_the_same_circuit(Circuits, A, B) of
-        true -> Circuits; %% dont link them
-        false ->
-            %% We already know that A and B are not in the same circuit (can be improved also to check the first element of partition to be size 1)
-            %% So we have now a list of circuits that need be connected in the first element
-            %% and all other circuits in the second element
-            {[CircuitA, CircuitB | _], OtherCircuit} = lists:partition(fun(Circuit) -> lists:member(A, Circuit) orelse lists:member(B, Circuit) end, Circuits),
-            [CircuitA ++ CircuitB] ++ OtherCircuit
-    end,
-
+connections2(Circuits, [], _Pair) -> cant_connect;
+connections2(_Circuits, _, Pair) when length(_Circuits) == 1 -> Pair;
+connections2(Circuits, [{_Distance, A, B} | Rest], _Pair) ->
+    NewCircuits = merge_circuits(Circuits, A, B),
     connections2(NewCircuits, Rest, {A, B}).
