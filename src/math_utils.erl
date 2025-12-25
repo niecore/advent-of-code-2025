@@ -11,3 +11,9 @@ mod(X, Y) when Y < 0 ->
         R when R > 0 -> R + Y;
         R -> R
     end.
+
+min(X, Y) when X < Y -> X;
+min(_, Y) -> Y.
+
+max(X, Y) when X > Y -> X;
+max(_, Y) -> Y.
