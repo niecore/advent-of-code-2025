@@ -31,5 +31,35 @@ find_path(Input, Current, Visited) ->
             end, Neighbors)
     end.
 
+count_paths(Input, "out", {true, true}) ->
+    1;
+count_paths(Input, "out", _) ->
+    0;
+count_paths(Input, Current, {VisitedDac, VisitedFft}) ->
+    Dac = case Current =:= "dac" of
+        true -> true;
+        false -> VisitedDac
+    end,
+    Fft = case Current =:= "fft" of
+        true -> true;
+        false -> VisitedFft
+    end,
+    Lookup = {Current, Dac, Fft},
+    case ets:lookup(wires, Lookup) of
+        [{_, Count}] ->
+            Count;
+        [] ->
+            case maps:get(Current, Input) of
+                Neighbors ->
+                    Count = lists:sum(lists:map(fun(Neighbor) ->
+                        count_paths(Input, Neighbor, {Dac, Fft})
+                    end, Neighbors)),
+                    ets:insert(wires, {Lookup, Count}),
+                    Count
+            end
+    end.
+
 part2() ->
-    ok.
+    Input = parse_input(),
+    ets:new(wires, [named_table, private, set]),
+    count_paths(Input, "svr", {false, false}).
