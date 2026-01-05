@@ -36,23 +36,7 @@ select_max_digits(K, Digits, Acc) ->
     %% Window: must leave at least K-1 digits after our pick
     WindowSize = Len - K + 1,
     Window = lists:sublist(Digits, WindowSize),
-    {MaxDigit, MaxIdx} = max_with_index(Window),
+    {MaxDigit, MaxIdx} = math_utils:max_with_index(Window),
     %% Take remaining digits after the chosen position
     Remaining = lists:nthtail(MaxIdx, Digits),
     select_max_digits(K - 1, Remaining, [MaxDigit | Acc]).
-
-max_with_index([H | T]) ->
-    %% 1 is the max indice
-    %% 2 is the next indice
-    %% H is the current max value
-    max_with_index(T, H, 1, 2).
-max_with_index([], MaxVal, MaxIdx, _Idx) ->
-    %% base case
-    {MaxVal, MaxIdx};
-max_with_index([H | T], MaxVal, MaxIdx, Idx) when H > MaxVal ->
-    %% Found new max value set
-    %% new max value and indice
-    max_with_index(T, H, Idx, Idx + 1);
-max_with_index([_ | T], MaxVal, MaxIdx, Idx) ->
-    %% current head is smaller than max value
-    max_with_index(T, MaxVal, MaxIdx, Idx + 1).

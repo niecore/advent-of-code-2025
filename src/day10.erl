@@ -6,6 +6,7 @@
 test() ->
     [true] = press_button([false], [0]),
     [false] = press_button([false], [2]),
+    day10part2:test(),
     ok.
 
 parse_light_string(Str) ->
@@ -24,7 +25,9 @@ parse_machine(Str) ->
     ButtonsStrings = lists:sublist(Tokens, 2, length(Tokens) - 2),
     Buttons = [parse_button_string(Str) || Str <- ButtonsStrings],
     JoltagesString = lists:last(Tokens),
-    #machine{light = Light, buttons = Buttons, joltages = JoltagesString}.
+    TrimmedJoltageString = string:trim(JoltagesString, both, "{}"),
+    Joltages = [list_to_integer(J) || J <- string:tokens(TrimmedJoltageString, ",")],
+    #machine{light = Light, buttons = Buttons, joltages = Joltages}.
 
 press_button(Light, Button) ->
     %% returns a new light
@@ -68,4 +71,6 @@ part1() ->
 
 part2() ->
     Input = input:read_input(10),
-    ok.
+    Machines = lists:map(fun parse_machine/1, Input),
+    %% for this I need a clean file
+    day10part2:part2(Machines).
