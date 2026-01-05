@@ -3,103 +3,130 @@
 
 -import(linalg, [shape/1, cell/3, zeros/2, set_cell/4, row/2, col/2, set_row/3]).
 
-
 -record(machine, {light, buttons, joltages}).
 
 test() ->
-    Machine = #machine{light= [], buttons = [[3], [1,3], [2], [2,3], [0,2], [0,1]], joltages = [3, 5, 4, 7]},
-    Matrix = create_augmented_matrix_from_machine(Machine),
-    %% Expected: 4x7 matrix
-    %% [0, 0, 0, 0, 1, 1, 3]
-    %% [0, 1, 0, 0, 0, 1, 5]
-    %% [0, 0, 1, 1, 1, 0, 4]
-    %% [1, 1, 0, 1, 0, 0, 7]
+    Machine = #machine{
+        light = [],
+        buttons = [[3], [1,3], [2], [2,3], [0,2], [0,1]],
+        joltages = [3, 5, 4, 7]
+    },
+    Matrix = create_augmented_matrix(Machine),
     {4, 7} = shape(Matrix),
     3 = cell(1, 7, Matrix),
     5 = cell(2, 7, Matrix),
     ok.
 
-%% had to look up a solution on this one:
-%% https://www.reddit.com/r/adventofcode/comments/1pp98cr/2025_day_10_part_2_solution_without_using_a_3rd
+%% Reference: https://www.reddit.com/r/adventofcode/comments/1pp98cr/2025_day_10_part_2_solution_without_using_a_3rd
 part2(Machines) ->
-    io:format("Machines: ~p~n", [hd(Machines)]),
-    Matrix = create_augmented_matrix_from_machine(hd(Machines)),
-    io:format("Matrix: ~p~n", [Matrix]),
-    eliminate(Matrix).
+    lists:map(fun(Machine) ->
+        Matrix = create_augmented_matrix(Machine),
+        io:format("Augmented Matrix: ~p~n", [Matrix]),
+        M = row_echelon(Matrix),
+        io:format("Row echelon Matrix: ~p~n", [M]),
+        Solution = back_substitution(M),
+        io:format("Solution: ~p~n", [Solution]),
+        lists:sum(Solution)
+    end, Machines).
 
-create_augmented_matrix_from_machine(Machine) ->
-    NumRows = length(Machine#machine.joltages),
-    NumCols = length(Machine#machine.buttons) + 1,
-
+create_augmented_matrix(#machine{buttons = Buttons, joltages = Joltages}) ->
+    NumRows = length(Joltages),
+    NumCols = length(Buttons) + 1,
     %% Create empty matrix filled with zeros
     Matrix = zeros(NumRows, NumCols),
-
+    IndexedButtons = lists:enumerate(Buttons),
     %% Fill in the matrix values
-    lists:foldl(fun({RowIdx, Joltage}, Acc) ->
-        %% Set button columns
-        Acc2 = lists:foldl(fun({ColIdx, Button}, M) ->
-            case lists:member(RowIdx - 1, Button) of
-                true -> set_cell(RowIdx, ColIdx, 1, M);
-                false -> M
-            end
-        end, Acc, lists:enumerate(Machine#machine.buttons)),
-        %% Set joltage column (last column)
-        set_cell(RowIdx, NumCols, Joltage, Acc2)
-    end, Matrix, lists:enumerate(Machine#machine.joltages)).
+    lists:foldl(
+        fun({RowIdx, Joltage}, Acc) ->
+            %% Set button columns
+            Acc1 = lists:foldl(
+                fun({ColIdx, Button}, M) ->
+                    case lists:member(RowIdx - 1, Button) of
+                        true  -> set_cell(RowIdx, ColIdx, 1, M);
+                        false -> M
+                    end
+                end,
+                Acc,
+                IndexedButtons
+            ),
+            %% Set joltage column (last column)
+            set_cell(RowIdx, NumCols, Joltage, Acc1)
+        end,
+        Matrix,
+        lists:enumerate(Joltages)
+    ).
 
-find_pivot(Matrix, Col, N) ->
-    {Above, Below} = lists:split(Col - 1, Matrix),
+find_pivot(Matrix, Col) ->
+    {_Above, Below} = lists:split(Col - 1, Matrix),
     CurrentCol = col(Col, Below),
+    find_nonzero(lists:enumerate(CurrentCol)).
 
-    case lists:search(fun({PivotIdx, PivotValue}) -> PivotValue =/= 0 end, lists:enumerate(CurrentCol)) of
-        {value, Value} -> Value;
-        _ -> error
-    end.
+find_nonzero([{Idx, Val} | _]) when Val =/= 0 ->
+    {Idx, Val};
+find_nonzero([_ | Rest]) ->
+    find_nonzero(Rest);
+find_nonzero([]) ->
+    error.
 
-eliminate(Matrix) ->
-    N = length(Matrix),
-    RowEchelonForMatrix = eliminate(Matrix, 1, N),
-    RowEchelonForMatrix.
+row_echelon(Matrix) ->
+    row_echelon(Matrix, 1, length(Matrix)).
 
-eliminate(Matrix, Col, N) when Col >= N ->
+row_echelon(Matrix, Col, N) when Col >= N ->
     Matrix;
-
-eliminate(Matrix, Col, N) ->
-    {PivotIdx, PivotValue} = find_pivot(Matrix, Col, N),
-    io:format("Pivot Value: ~p, Pivot Index: ~p~n", [PivotValue, PivotIdx]),
-
+row_echelon(Matrix, Col, N) ->
+    {PivotIdx, PivotValue} = find_pivot(Matrix, Col),
     %% Swap pivot row with current row
-    Matrix2 = swap_rows(Matrix, PivotIdx + (Col - 1), Col),
-
+    Matrix1 = swap_rows(Matrix, PivotIdx + Col - 1, Col),
     %% Ensure pivot is positive by scaling row if needed
-    ScaleFactor = case PivotValue < 0 of
-        true -> -1;
-        false -> 1
-    end,
-    Matrix3 = scale_row(Matrix2, Col, ScaleFactor),
-    ActualPivotValue = abs(PivotValue),
+    Matrix2 = ensure_positive_pivot(Matrix1, Col, PivotValue),
+    Matrix3 = eliminate_column(Matrix2, Col, abs(PivotValue)),
+    row_echelon(Matrix3, Col + 1, N).
 
-    {Above2, Below2} = lists:split(Col - 1, Matrix3),
-    CurrentCol2 = col(Col, Below2),
+ensure_positive_pivot(Matrix, RowIdx, PivotValue) when PivotValue < 0 ->
+    scale_row(Matrix, RowIdx, -1);
+ensure_positive_pivot(Matrix, _RowIdx, _PivotValue) ->
+    Matrix.
 
-    NonZeroRows = [ {RowIdx + Col, Value} || {RowIdx, Value} <- lists:enumerate(tl(CurrentCol2)), Value =/= 0 ],
-    Matrix4 = lists:foldl(fun({RowIdx, RowValue}, M) ->
-        Lcm = math_utils:lcm(ActualPivotValue, RowValue),
-        M2 = scale_row(M, Col, Lcm),
-        M3 = scale_row(M2, RowIdx, Lcm),
-        M4 = subtract_rows(M3, RowIdx, Col),
-        M4
-    end, Matrix3, NonZeroRows),
+eliminate_column(Matrix, Col, PivotValue) ->
+    {_Above, Below} = lists:split(Col - 1, Matrix),
+    CurrentCol = col(Col, Below),
+    NonZeroRows = [{Idx + Col, Val} || {Idx, Val} <- lists:enumerate(tl(CurrentCol)), Val =/= 0],
+    lists:foldl(
+        fun({RowIdx, RowValue}, M) ->
+            Lcm = math_utils:lcm(PivotValue, RowValue),
+            M1 = scale_row(M, Col, Lcm),
+            M2 = scale_row(M1, RowIdx, Lcm),
+            subtract_rows(M2, RowIdx, Col)
+        end,
+        Matrix,
+        NonZeroRows
+    ).
 
-    io:format("Matrix after elimination: ~p~n", [Matrix4]),
-    eliminate(Matrix4, Col + 1, N).
+back_substitution(Matrix) ->
+    back_substitution(lists:reverse(Matrix), 1, length(Matrix), []).
 
+back_substitution(_Matrix, RowIdx, N, Solutions) when RowIdx > N ->
+    Solutions;
+back_substitution(Matrix, RowIdx, N, Solutions) ->
+    Row = row(RowIdx, Matrix),
+    System = lists:nthtail(N - RowIdx, Row),
+    Coeffs = lists:sublist(System, 2, length(System) - 2),
+    B = lists:last(System),
+    Result = lists:foldl(fun({Coeff, X}, Acc) -> Acc - (Coeff * X) end, B, lists:zip(Coeffs, Solutions)),
+    Coeff = hd(System),
+    X = Result / Coeff,
+    back_substitution(Matrix, RowIdx + 1, N, [X | Solutions]).
+
+swap_rows(Matrix, Idx, Idx) ->
+    Matrix;
 swap_rows(Matrix, Row1Idx, Row2Idx) ->
     Row1 = row(Row1Idx, Matrix),
     Row2 = row(Row2Idx, Matrix),
     Matrix2 = set_row(Row1Idx, Row2, Matrix),
     set_row(Row2Idx, Row1, Matrix2).
 
+scale_row(Matrix, RowIdx, 1) ->
+    Matrix;
 scale_row(Matrix, RowIdx, Scalar) ->
     Row = row(RowIdx, Matrix),
     NewRow = lists:map(fun(X) -> X * Scalar end, Row),
