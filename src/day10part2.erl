@@ -6,12 +6,13 @@
 -record(machine, {light, buttons, joltages}).
 
 test() ->
-    Machine = #machine{
-        light = [],
-        buttons = [[3], [1,3], [2], [2,3], [0,2], [0,1]],
-        joltages = [3, 5, 4, 7]
-    },
+    Machine = #machine{light= [], buttons = [[3], [1,3], [2], [2,3], [0,2], [0,1]], joltages = [3, 5, 4, 7]},
     Matrix = create_augmented_matrix(Machine),
+    %% Expected: 4x7 matrix
+    %% [0, 0, 0, 0, 1, 1, 3]
+    %% [0, 1, 0, 0, 0, 1, 5]
+    %% [0, 0, 1, 1, 1, 0, 4]
+    %% [1, 1, 0, 1, 0, 0, 7]
     {4, 7} = shape(Matrix),
     3 = cell(1, 7, Matrix),
     5 = cell(2, 7, Matrix),
@@ -66,7 +67,7 @@ find_nonzero([{Idx, Val} | _]) when Val =/= 0 ->
 find_nonzero([_ | Rest]) ->
     find_nonzero(Rest);
 find_nonzero([]) ->
-    error.
+    no_pivot.
 
 row_echelon(Matrix) ->
     row_echelon(Matrix, 1, length(Matrix)).
@@ -74,15 +75,24 @@ row_echelon(Matrix) ->
 row_echelon(Matrix, Col, N) when Col >= N ->
     Matrix;
 row_echelon(Matrix, Col, N) ->
-    {PivotIdx, PivotValue} = find_pivot(Matrix, Col),
-    %% Swap pivot row with current row
-    Matrix1 = swap_rows(Matrix, PivotIdx + Col - 1, Col),
-    %% Ensure pivot is positive by scaling row if needed
-    Matrix2 = ensure_positive_pivot(Matrix1, Col, PivotValue),
-    Matrix3 = eliminate_column(Matrix2, Col, abs(PivotValue)),
-    row_echelon(Matrix3, Col + 1, N).
+    io:format("Col ~p Matrix: ~p~n", [Col, Matrix]),
+
+    case find_pivot(Matrix, Col) of
+        {PivotIdx, PivotValue} ->
+            io:format("Pivot ~p Value: ~p~n", [PivotIdx, PivotValue]),
+            %% Swap pivot row with current row
+            Matrix1 = swap_rows(Matrix, PivotIdx + Col - 1, Col),
+            %% Ensure pivot is positive by scaling row if needed
+            Matrix2 = ensure_positive_pivot(Matrix1, Col, PivotValue),
+            Matrix3 = eliminate_column(Matrix2, Col, abs(PivotValue)),
+            row_echelon(Matrix3, Col + 1, N);
+        no_pivot ->
+            io:format("No pivot found in column ~p~n", [Col]),
+            Matrix
+    end.
 
 ensure_positive_pivot(Matrix, RowIdx, PivotValue) when PivotValue < 0 ->
+    io:format("Scale row ~p by ~p~n", [RowIdx, -1]),
     scale_row(Matrix, RowIdx, -1);
 ensure_positive_pivot(Matrix, _RowIdx, _PivotValue) ->
     Matrix.
@@ -96,7 +106,17 @@ eliminate_column(Matrix, Col, PivotValue) ->
             Lcm = math_utils:lcm(PivotValue, RowValue),
             M1 = scale_row(M, Col, Lcm),
             M2 = scale_row(M1, RowIdx, Lcm),
-            subtract_rows(M2, RowIdx, Col)
+            io:format("Scale row ~p by ~p~n", [Col, Lcm]),
+            io:format("Scale row ~p by ~p~n", [RowIdx, Lcm]),
+
+            case RowValue > 0 of
+                true ->
+                    io:format("Subtract row ~p from row ~p~n", [Col, RowIdx]),
+                    subtract_rows(M2, RowIdx, Col);
+                false ->
+                    io:format("Add row ~p to row ~p~n", [Col, RowIdx]),
+                    add_rows(M2, RowIdx, Col)
+            end
         end,
         Matrix,
         NonZeroRows
