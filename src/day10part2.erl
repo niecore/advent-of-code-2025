@@ -23,12 +23,23 @@ part2(Machines) ->
     lists:map(fun(Machine) ->
         Matrix = create_augmented_matrix(Machine),
         io:format("Augmented Matrix: ~p~n", [Matrix]),
-        M = row_echelon(Matrix),
+        {M, FreeVars} = row_echelon(Matrix),
         io:format("Row echelon Matrix: ~p~n", [M]),
+        io:format("Free variables (columns): ~p~n", [FreeVars]),
+
+        MaxPresses = [max_presses_for_button(FreeVar, Machine) || FreeVar <- FreeVars],
+        io:format("Max presses for each button: ~p ~n", [MaxPresses]),
+
         Solution = back_substitution(M),
         io:format("Solution: ~p~n", [Solution]),
         lists:sum(Solution)
     end, Machines).
+
+max_presses_for_button(FreeVar, #machine{buttons = Buttons, joltages = Joltages}) ->
+    Button = lists:nth(FreeVar, Buttons),
+    AffectedJoltages = [lists:nth(Idx + 1, Joltages) || Idx <- Button],
+    MaxPresses = lists:min(AffectedJoltages),
+    MaxPresses.
 
 create_augmented_matrix(#machine{buttons = Buttons, joltages = Joltages}) ->
     NumRows = length(Joltages),
@@ -70,11 +81,14 @@ find_nonzero([]) ->
     no_pivot.
 
 row_echelon(Matrix) ->
-    row_echelon(Matrix, 1, length(Matrix)).
+    {NumRows, NumCols} = shape(Matrix),
+    %% Don't process the augmented column (last column)
+    MaxCol = min(NumRows, NumCols - 1),
+    row_echelon(Matrix, 1, MaxCol, []).
 
-row_echelon(Matrix, Col, N) when Col >= N ->
-    Matrix;
-row_echelon(Matrix, Col, N) ->
+row_echelon(Matrix, Col, MaxCol, FreeVars) when Col > MaxCol ->
+    {Matrix, lists:reverse(FreeVars)};
+row_echelon(Matrix, Col, MaxCol, FreeVars) ->
     io:format("Col ~p Matrix: ~p~n", [Col, Matrix]),
 
     case find_pivot(Matrix, Col) of
@@ -85,10 +99,11 @@ row_echelon(Matrix, Col, N) ->
             %% Ensure pivot is positive by scaling row if needed
             Matrix2 = ensure_positive_pivot(Matrix1, Col, PivotValue),
             Matrix3 = eliminate_column(Matrix2, Col, abs(PivotValue)),
-            row_echelon(Matrix3, Col + 1, N);
+            row_echelon(Matrix3, Col + 1, MaxCol, FreeVars);
         no_pivot ->
-            io:format("No pivot found in column ~p~n", [Col]),
-            Matrix
+            io:format("No pivot found in column ~p (free variable)~n", [Col]),
+            %% Track free variable and continue to next column
+            row_echelon(Matrix, Col + 1, MaxCol, [Col | FreeVars])
     end.
 
 ensure_positive_pivot(Matrix, RowIdx, PivotValue) when PivotValue < 0 ->
